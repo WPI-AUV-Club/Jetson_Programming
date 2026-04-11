@@ -81,7 +81,7 @@ try:
     pico_id = read_number()
     while True:
         if (time.time() - time_last_sent_command >= command_period):
-            send_command()
+            send_command() #Test
             time_last_sent_command = time.time()    
 
         process_msg()
