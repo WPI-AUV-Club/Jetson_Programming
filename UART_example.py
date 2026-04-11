@@ -8,6 +8,7 @@ print("NVIDIA Jetson Nano Developer Kit")
 
 msg_buffer = ""
 time_last_sent_command = time.time()
+time_last_recv_command = time.time()
 command_period = 0.02
 end_of_packet = 0
 commanded_vel = 1
@@ -59,13 +60,14 @@ def send_paring_ack():
 
 
 def process_msg():
-    global msg_buffer, pico_id
+    global msg_buffer, pico_id, time_last_recv_command
     while (serial_port.in_waiting > 0):
         # print(serial_port.in_waiting)
         data = serial_port.read()
         if(data == b'\x00'):
             if (len(msg_buffer) > 0): print(str(pico_id) + '>' + msg_buffer)
             msg_buffer = ""
+            time_last_recv_command = time.time()
         else:
             if "ACK:" in msg_buffer:
                 msg_buffer += str(int.from_bytes(data, "big"))
@@ -85,6 +87,10 @@ try:
             time_last_sent_command = time.time()    
 
         process_msg()
+
+        if (time.time() - time_last_recv_command >= command_period*3):
+            time_last_recv_command = time.time()
+            print("SELF>DID_NOT_RECV_PACKET")
       
 except KeyboardInterrupt:
     print("Exiting Program")
