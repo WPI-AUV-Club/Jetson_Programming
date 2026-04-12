@@ -69,7 +69,6 @@ def send_paring_ack():
 def process_msg():
     global msg_buffer, pico_id, time_last_recv_command, prev_ack_index
     while (serial_port.in_waiting > 0):
-        # print(serial_port.in_waiting)
         data = serial_port.read()
         if(data == b'\x00'):
             if (len(msg_buffer) > 0): print(str(pico_id) + '>' + msg_buffer)
