@@ -9,10 +9,13 @@ print("NVIDIA Jetson Nano Developer Kit")
 msg_buffer = ""
 time_last_sent_command = time.time()
 time_last_recv_command = time.time()
+prev_ack_index = 0
 command_period = 0.02
 end_of_packet = 0
 commanded_vel = 1
 pico_id = -1
+pairing_cooldown_s = 1
+time_last_pair_attempted = time.time()
 id_file = "UART_pico_id.txt"
 
 
@@ -25,6 +28,7 @@ serial_port = serial.Serial(
 )
 # Wait a second to let the port initialize
 time.sleep(1)
+serial_port.reset_input_buffer()
 
 
 def write_number(number: int) -> None:
@@ -53,14 +57,17 @@ def send_command():
 
 
 def send_paring_ack():
-    serial_port.write(b'ACK:ID')
-    serial_port.write(end_of_packet.to_bytes(1, byteorder='big'))
-    print("Pico Reboot Detected, assigning new ID")
-    # time.sleep(1)
+    global time_last_pair_attempted, pairing_cooldown_s, pico_id
+    if (time.time() - time_last_pair_attempted > pairing_cooldown_s):
+        pico_id = increment_number()
+        serial_port.write(b'ACK:ID')
+        serial_port.write(end_of_packet.to_bytes(1, byteorder='big'))
+        print("Pico Reboot Detected, assigning new ID")
+        time_last_pair_attempted = time.time()
 
 
 def process_msg():
-    global msg_buffer, pico_id, time_last_recv_command
+    global msg_buffer, pico_id, time_last_recv_command, prev_ack_index
     while (serial_port.in_waiting > 0):
         # print(serial_port.in_waiting)
         data = serial_port.read()
@@ -70,12 +77,14 @@ def process_msg():
             time_last_recv_command = time.time()
         else:
             if "ACK:" in msg_buffer:
-                msg_buffer += str(int.from_bytes(data, "big"))
+                index = int.from_bytes(data, "big")
+                if (index != prev_ack_index+1 and prev_ack_index != 255): print("SELF>NONSEQUENTIAL_ACK")
+                prev_ack_index = index
+                msg_buffer += str(index)
             else:
                 msg_buffer += data.decode("utf-8", errors="replace")
 
             if "REQ:ID" in msg_buffer:
-                pico_id = increment_number()
                 send_paring_ack()
 
 
@@ -88,7 +97,7 @@ try:
 
         process_msg()
 
-        if (time.time() - time_last_recv_command >= command_period*3):
+        if (time.time() - time_last_recv_command > command_period*3):
             time_last_recv_command = time.time()
             print("SELF>DID_NOT_RECV_PACKET")
       
